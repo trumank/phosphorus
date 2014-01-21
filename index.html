@@ -34,6 +34,10 @@
   <h1>Report a problem</h1>
   <p>Phosphorus is still in development. <a id=bug-link target=_blank href=https://github.com/nathan/phosphorus/issues/new>Click here</a> to report a problem with this project.</p>
 </section>
+<section>
+  <h1>Bookmarklet</h1>
+  <p>Drag <a href="javascript:(function(){var x=/https?:\/\/scratch\.mit\.edu\/projects\/(\d+)\/?/.exec(location);if(x){location='http://phosphorus.herokuapp.com/#'+x[1]}x=/https?:\/\/phosphorus\.herokuapp\.com\/#(\d+)?/.exec(location);if(x){location='http://scratch.mit.edu/projects/'+x[1]+'/'}}())">this link</a> into your bookmarks bar and click it on a Scratch project page to view the project in phosphorus. Click it again to go back to Scratch.</p>
+</section>
 <script src=lib/jszip/jszip.js></script>
 <script src=lib/jszip/jszip-deflate.js></script>
 <script src=lib/jszip/jszip-inflate.js></script>
