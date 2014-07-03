@@ -169,8 +169,8 @@ var P = (function() {
   var IO = {};
 
   IO.BASE_URL = 'http://scratch.mit.edu/internalapi/'
-  IO.PROJECT_URL = IO.BASE_URL + 'project/';
-  IO.ASSET_URL = IO.BASE_URL + 'asset/';
+  IO.PROJECT_URL = 'http://projects.scratch.mit.edu/internalapi/project/';
+  IO.ASSET_URL = 'http://cdn.scratch.mit.edu/internalapi/asset/';
 
   IO.PROXY_URL = 'proxy.php?u=';
 
@@ -193,7 +193,7 @@ var P = (function() {
     return (1, eval)('(' + json + ')');
   };
 
-  IO.load = function(url, callback, self) {
+  IO.load = function(url, callback, self, type) {
     var request = new Request;
     var xhr = new XMLHttpRequest;
     xhr.open('GET', IO.PROXY_URL + encodeURIComponent(url), true);
@@ -202,7 +202,7 @@ var P = (function() {
     };
     xhr.onload = function() {
       if (xhr.status === 200) {
-        request.load(xhr.responseText);
+        request.load(xhr.response);
       } else {
         request.error(new Error('HTTP ' + xhr.status + ': ' + xhr.statusText));
       }
@@ -210,6 +210,7 @@ var P = (function() {
     xhr.onerror = function() {
       request.error(new Error('XHR Error'));
     };
+    xhr.responseType = type;
     setTimeout(xhr.send.bind(xhr));
 
     if (callback) request.onLoad(callback.bind(self));
@@ -224,7 +225,7 @@ var P = (function() {
       request.load(image);
     };
     image.onerror = function() {
-      request.error(new Error('Failed to load image'));
+      request.error(new Error('Failed to load image: ' + url));
     };
     if (callback) request.onLoad(callback.bind(self));
     return request;
@@ -235,9 +236,25 @@ var P = (function() {
     IO.init(request);
 
     request.defer = true;
-    request.add(IO.load(IO.PROJECT_URL + id + '/get/?' + Math.random().toString().slice(2)).onLoad(function(contents) {
+    var url = IO.PROJECT_URL + id + '/get/?' + Math.random().toString().slice(2);
+    request.add(IO.load(url).onLoad(function(contents) {
       try {
         var json = IO.parseJSONish(contents);
+      } catch (e) {
+        request.add(IO.load(url, null, null, 'arraybuffer').onLoad(function(ab) {
+          var request2 = new Request;
+          request.add(request2);
+          request.add(IO.loadSB2Project(ab, function(stage) {
+            request.getResult = function() {
+              return stage;
+            };
+            request2.load();
+          }));
+          request.defer = false;
+        }));
+        return;
+      }
+      try {
         IO.loadProject(json);
         if (callback) request.onLoad(callback.bind(self));
         if (request.isDone) {
@@ -390,6 +407,7 @@ var P = (function() {
   };
 
   IO.fixSVG = function(svg, element) {
+    if (element.nodeType !== 1) return;
     if (element.nodeName == 'text') {
       var font = IO.FONTS[element.getAttribute('font-family')];
       if (font) {
@@ -404,7 +422,7 @@ var P = (function() {
       element.setAttribute('x', 0);
       element.setAttribute('y', 0);
     }
-    [].forEach.call(element.children, IO.fixSVG.bind(null, svg));
+    [].forEach.call(element.childNodes, IO.fixSVG.bind(null, svg));
   };
 
   IO.loadMD5 = function(md5, id, callback) {
@@ -420,14 +438,14 @@ var P = (function() {
         svg.style.top = '-10000px';
         document.body.appendChild(svg);
         IO.fixSVG(svg, svg);
-        document.body.removeChild(svg);
+        div.appendChild(svg);
         svg.style.visibility = 'visible';
 
         var canvas = document.createElement('canvas');
         var context = canvas.getContext('2d');
         var image = new Image;
         callback(image);
-        canvg(canvas, svg.outerHTML, {
+        canvg(canvas, div.innerHTML.trim(), {
           ignoreMouse: true,
           ignoreAnimation: true,
           ignoreClear: true,
@@ -761,7 +779,7 @@ var P = (function() {
 
     this.promptTitle = document.createElement('div');
     this.prompter.appendChild(this.promptTitle);
-    this.promptTitle.textContent = 'What\'s your name? aesfnaseu fihaosiefhoi uaesfhiouas ehfiha eofsh oiaesfoi seaof ho iaefshoi ufaeshiou afeshio aseof ';
+    this.promptTitle.textContent = '';
     this.promptTitle.style.cursor = 'default';
     this.promptTitle.style.font = 'bold 13em sans-serif';
     this.promptTitle.style.margin = '0 '+(-25/13)+'em '+(5/13)+'em 0';
@@ -796,7 +814,7 @@ var P = (function() {
     this.promptButton.style.right = '4em';
     this.promptButton.style.bottom = '4em';
     this.promptButton.style.background = 'url(icons.svg) -165em -37em';
-    this.promptButton.style.backgroundSize = '320em 64em';
+    this.promptButton.style.backgroundSize = '320em 96em';
 
     this.prompt.addEventListener('keydown', function(e) {
       if (e.keyCode === 13) {
@@ -1439,7 +1457,7 @@ var P = (function() {
       this.bubblePointer.style.height = ''+(21/14)+'em';
       this.bubblePointer.style.width = ''+(44/14)+'em';
       this.bubblePointer.style.background = 'url(icons.svg) '+(-195/14)+'em '+(-4/14)+'em';
-      this.bubblePointer.style.backgroundSize = ''+(320/14)+'em '+(64/14)+'em';
+      this.bubblePointer.style.backgroundSize = ''+(320/14)+'em '+(96/14)+'em';
       this.stage.root.appendChild(this.bubble);
     }
     this.bubblePointer.style.backgroundPositionX = ((thinking ? -259 : -195)/14)+'em';
@@ -1874,7 +1892,7 @@ P.compile = (function() {
 
       } else if (e[0] === 'readVariable') {
 
-        return 'S.varRefs[' + val(e[1]) + '].value';
+        return 'getVar(' + val(e[1]) + ').value';
 
       } else if (e[0] === 'contentsOfList:') {
 
@@ -2104,7 +2122,9 @@ P.compile = (function() {
         source += 'console.log(' + val(block[0]) + ');\n';
       }
 
-      if (['forward:', 'turnRight:', 'turnLeft:', 'heading:', 'pointTowards:', 'gotoX:y:', 'gotoSpriteOrMouse:', 'changeXposBy:', 'xpos:', 'changeYposBy:', 'ypos:', 'bounceOffEdge', 'setRotationStyle', 'lookLike:', 'nextCostume', 'showBackground:', 'startScene', 'nextBackground', 'nextScene', 'startSceneAndWait', 'say:duration:elapsed:from:', 'say:', 'think:duration:elapsed:from:', 'think:', 'changeGraphicEffect:by:', 'setGraphicEffect:to:', 'filterReset', 'changeSizeBy:', 'setSizeTo:', 'show', 'hide', 'comeToFront', 'goBackByLayers:', 'putPenDown', 'stampCostume', 'showVariable:', 'hideVariable:', 'glideSecs:toX:y:elapsed:from:', 'createCloneOf', 'deleteClone', 'doAsk'].indexOf(block[0]) > -1) {
+      if (['forward:', 'turnRight:', 'turnLeft:', 'heading:', 'pointTowards:', 'gotoX:y:', 'gotoSpriteOrMouse:', 'changeXposBy:', 'xpos:', 'changeYposBy:', 'ypos:', 'bounceOffEdge', 'setRotationStyle', 'lookLike:', 'nextCostume', 'say:duration:elapsed:from:', 'say:', 'think:duration:elapsed:from:', 'think:', 'changeGraphicEffect:by:', 'setGraphicEffect:to:', 'filterReset', 'changeSizeBy:', 'setSizeTo:', 'comeToFront', 'goBackByLayers:', 'glideSecs:toX:y:elapsed:from:'].indexOf(block[0]) > -1) {
+        source += 'if (S.visible) VISUAL = true;\n';
+      } else if (['showBackground:', 'startScene', 'nextBackground', 'nextScene', 'startSceneAndWait', 'show', 'hide', 'putPenDown', 'stampCostume', 'showVariable:', 'hideVariable:', 'doAsk'].indexOf(block[0]) > -1) {
         source += 'VISUAL = true;\n';
       }
 
@@ -2374,11 +2394,11 @@ P.compile = (function() {
 
       } else if (block[0] === 'setVar:to:') { /* Data */
 
-        source += 'if (S.varRefs[' + val(block[1]) + ']) S.varRefs[' + val(block[1]) + '].value = ' + val(block[2]) + ';\n';
+        source += 'getVar(' + val(block[1]) + ').value = ' + val(block[2]) + ';\n';
 
       } else if (block[0] === 'changeVar:by:') {
 
-        source += 'if (S.varRefs[' + val(block[1]) + ']) S.varRefs[' + val(block[1]) + '].value = (Number(S.varRefs[' + val(block[1]) + '].value) || 0) + ' + num(block[2]) + ';\n';
+        source += 'var v = getVar(' + val(block[1]) + '); v.value = (Number(v.value) || 0) + ' + num(block[2]) + ';\n';
 
       } else if (block[0] === 'append:toList:') {
 
@@ -2479,7 +2499,7 @@ P.compile = (function() {
 
         if (warp) {
 
-          source += 'while (R.count > 0) {\n';
+          source += 'while (R.count >= 0.5) {\n';
           source += '  R.count -= 1;\n';
           seq(block[2]);
           source += '}\n';
@@ -2490,7 +2510,7 @@ P.compile = (function() {
 
           var id = label();
 
-          source += 'if (R.count > 0) {\n';
+          source += 'if (R.count >= 0.5) {\n';
           source += '  R.count -= 1;\n';
           seq(block[2]);
           queue(id);
@@ -2635,11 +2655,13 @@ P.compile = (function() {
 
       } else if (block[0] === 'deleteClone') {
 
-        source += 'var i = self.children.indexOf(S);\n';
-        source += 'if (i > -1) self.children.splice(i, 1);\n';
-        source += 'S.queue = [];\n';
-        source += 'TERMINATE = true;\n';
-        source += 'return;\n';
+        source += 'if (S.isClone) {\n';
+        source += '  var i = self.children.indexOf(S);\n';
+        source += '  if (i > -1) self.children.splice(i, 1);\n';
+        source += '  S.queue = [];\n';
+        source += '  TERMINATE = true;\n';
+        source += '  return;\n';
+        source += '}\n';
 
       } else if (block[0] === 'doAsk') { /* Sensing */
 
@@ -2880,6 +2902,12 @@ P.runtime = (function() {
         return new Date().getSeconds();
     }
     return 0;
+  };
+
+  var getVar = function(name) {
+    var v = S.varRefs[name];
+    if (!v) S.variables.push(S.varRefs[name] = v = {name: name, value: 0, isPeristent: false});
+    return v;
   };
 
   var listIndex = function(list, index, length) {
