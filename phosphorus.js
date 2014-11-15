@@ -414,6 +414,14 @@ var P = (function() {
 
   IO.fixSVG = function(svg, element) {
     if (element.nodeType !== 1) return;
+    var bb = element.getBBox && element.getBBox();
+    if (element.nodeName === 'path' && element.getAttribute('stroke-width')) {
+      var strokeWidth = +element.getAttribute('stroke-width');
+      bb.x -= strokeWidth / 2;
+      bb.y -= strokeWidth / 2;
+      bb.width += strokeWidth;
+      bb.height += strokeWidth;
+    }
     if (element.nodeName === 'text') {
       var font = element.getAttribute('font-family') || '';
       font = IO.FONTS[font] || font;
@@ -425,7 +433,6 @@ var P = (function() {
       if (!size) {
         element.setAttribute('font-size', size = 18);
       }
-      var bb = element.getBBox();
       var x = 4 - .6 * element.transform.baseVal.consolidate().matrix.a;
       var y = (element.getAttribute('y') - bb.y) * 1.1;
       element.setAttribute('x', x);
@@ -448,7 +455,20 @@ var P = (function() {
       element.setAttribute('x', 0);
       element.setAttribute('y', 0);
     }
-    [].forEach.call(element.childNodes, IO.fixSVG.bind(null, svg));
+    var max = bb;
+    [].forEach.call(element.childNodes, function (element) {
+      var bb = IO.fixSVG(svg, element);
+      if (!bb) return;
+      if (!max) return max = bb;
+      var newMax = {
+        x: Math.min(max.x, bb.x),
+        y: Math.min(max.y, bb.y)
+      };
+      newMax.width = Math.max(max.x + max.width, bb.x + bb.width) - newMax.x;
+      newMax.height = Math.max(max.y + max.height, bb.y + bb.height) - newMax.y;
+      max = newMax;
+    }, svg);
+    return max;
   };
 
   IO.loadMD5 = function(md5, id, callback) {
@@ -472,13 +492,22 @@ var P = (function() {
           viewBox.width = 0;
           viewBox.height = 0;
         }
-        IO.fixSVG(svg, svg);
+        var bb = IO.fixSVG(svg, svg);
+        var viewBox = svg.viewBox.baseVal;
+        viewBox.x = bb.x;
+        viewBox.y = bb.y;
+        viewBox.width = bb.width;
+        viewBox.height = bb.height;
+        svg.setAttribute('width', bb.width);
+        svg.setAttribute('height', bb.height);
         while (div.firstChild) div.removeChild(div.lastChild);
         div.appendChild(svg);
         svg.style.visibility = 'visible';
 
         var canvas = document.createElement('canvas');
         var image = new Image;
+        image.offsetX = bb.x;
+        image.offsetY = bb.y;
         callback(image);
         // svg.style.cssText = '';
         // console.log(md5, 'data:image/svg+xml;base64,' + btoa(div.innerHTML.trim()));
@@ -1636,7 +1665,11 @@ var P = (function() {
     this.image = document.createElement('canvas');
     this.context = this.image.getContext('2d');
 
+    if (this.baseLayer.offsetX) this.rotationCenterX -= this.baseLayer.offsetX;
+    if (this.baseLayer.offsetY) this.rotationCenterY -= this.baseLayer.offsetY;
+
     this.render();
+
     this.baseLayer.onload = function() {
       this.render();
     }.bind(this);
