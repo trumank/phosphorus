@@ -3204,7 +3204,7 @@ P.compile = (function() {
 
         var id = label();
         source += 'var f = (self.now - R.start) / (R.duration * 1000);\n';
-        source += 'if (f > 1) f = 1;\n';
+        source += 'if (f > 1 || f !== f) f = 1;\n';
         source += 'S.moveTo(R.baseX + f * R.deltaX, R.baseY + f * R.deltaY);\n';
 
         source += 'if (f < 1) {\n';
