@@ -1536,6 +1536,8 @@ var P = (function() {
   };
 
   Sprite.prototype.moveTo = function(x, y) {
+    if (x !== x) x = 0;
+    if (y !== y) y = 0;
     var ox = this.scratchX;
     var oy = this.scratchY;
     if (ox === x && oy === y && !this.isPenDown) return;
