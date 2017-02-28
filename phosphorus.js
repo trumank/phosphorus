@@ -1684,6 +1684,7 @@ var P = (function() {
   };
 
   Sprite.prototype.touchingColor = function(rgb) {
+    if (!isFinite(this.scratchX) || !isFinite(this.scratchY)) return false;
     var b = this.rotatedBounds();
     collisionCanvas.width = b.right - b.left;
     collisionCanvas.height = b.top - b.bottom;
