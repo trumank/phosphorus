@@ -1656,6 +1656,10 @@ var P = (function() {
         var right = Math.min(mb.right, ob.right);
         var bottom = Math.max(mb.bottom, ob.bottom);
 
+        if (right - left <= 0 || top - bottom <= 0) {
+          continue;
+        }
+
         collisionCanvas.width = right - left;
         collisionCanvas.height = top - bottom;
 
@@ -1683,6 +1687,7 @@ var P = (function() {
 
   Sprite.prototype.touchingColor = function(rgb) {
     var b = this.rotatedBounds();
+    if (b.right - b.left <= 0 || b.top - b.bottom <= 0) return false;
     collisionCanvas.width = b.right - b.left;
     collisionCanvas.height = b.top - b.bottom;
 
